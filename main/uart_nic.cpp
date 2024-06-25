@@ -446,7 +446,7 @@ static void send_device_info() {
     // MAC address
     int ret = esp_wifi_get_mac(WIFI_IF_STA, mac.data());
     if(ret != ESP_OK) {
-        ESP_LOGI(TAG, "Failed to obtain MAC, returning last one or zeroes");
+        ESP_LOGW(TAG, "Failed to obtain MAC, returning last one or zeroes");
     }
 
     esp::Fletcher16 fl16{};
@@ -620,7 +620,7 @@ static void IRAM_ATTR store_scanned_ssids(wifi_ap_record_t *aps, int ap_count) {
             break;
         }
         for (uint8_t j = 0; j < scan.stored_ssids_count; ++j) {
-            ESP_LOGI(TAG, "Comparing >%.32s< and %s", (char *)scan.stored_ssids[j].ssid.data(), (char *)aps[i].ssid);
+            ESP_LOGD(TAG, "Comparing >%.32s< and %s", (char *)scan.stored_ssids[j].ssid.data(), (char *)aps[i].ssid);
             if (memcmp(scan.stored_ssids[j].ssid.data(), aps[i].ssid, esp::SSID_LEN) == 0) {
                 found = true;
                 break;
@@ -773,9 +773,9 @@ static void IRAM_ATTR wifi_egress_thread(void *arg) {
                 continue;
             }
 
-            int8_t err = esp_wifi_internal_tx(WIFI_IF_STA, buff->data, buff->len);
+            const auto err = esp_wifi_internal_tx(WIFI_IF_STA, buff->data, buff->len);
             if (err != ESP_OK) {
-                ESP_LOGE(TAG, "Failed to send packet !!!");
+                ESP_LOGE(TAG, "Failed to send packet: %s!!!", esp_err_to_name(err));
             }
             free_wifi_send_buff(buff);
         }
@@ -826,7 +826,8 @@ static void IRAM_ATTR uart_tx_thread(void *arg) {
 extern "C" void app_main() {
     ESP_LOGI(TAG, "UART NIC");
 
-	// esp_log_level_set("*", ESP_LOG_ERROR);
+    esp_log_level_set("*", ESP_LOG_ERROR);
+    esp_log_level_set(TAG, ESP_LOG_WARN);
 
     ESP_ERROR_CHECK(nvs_flash_init());
 
