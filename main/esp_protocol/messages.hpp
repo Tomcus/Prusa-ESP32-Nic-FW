@@ -2,6 +2,12 @@
 
 #include <array>
 
+#if __cpp_consteval
+    #define CONSTEVAL consteval
+#else
+    #define CONSTEVAL constexpr
+#endif
+
 namespace esp {
 
 constexpr uint8_t REQUIRED_PROTOCOL_VERSION = 13;
@@ -20,6 +26,7 @@ enum class MessageType : uint8_t {
     SCAN_STOP = 9,
     SCAN_AP_CNT = 10,
     SCAN_AP_GET = 11,
+    LOG = 12,
 };
 
 struct __attribute__((packed)) Header {
@@ -53,5 +60,23 @@ namespace data {
     };
 
     using MacAddress = std::array<uint8_t, MAC_SIZE>;
+
+    enum class EspLogLevel : uint8_t {
+        OFF,
+        DEBUG,
+        INFO,
+        WARNING,
+        ERROR,
+    };
+
+    struct EnableLogging {
+        EspLogLevel system;
+        EspLogLevel nic;
+
+        static CONSTEVAL EnableLogging off() { return { EspLogLevel::OFF, EspLogLevel::OFF }; }
+        static CONSTEVAL EnableLogging default_val() { return { EspLogLevel::ERROR, EspLogLevel::WARNING }; }
+    };
 } // namespace data
 } // namespace esp
+
+#undef CONSTEVAL

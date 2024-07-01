@@ -151,6 +151,8 @@ bool RxParserBase::validate_length_with_type() const {
         return msg.header.size == sizeof(data::MacAddress);
     case MessageType::SCAN_AP_GET:
         return msg.header.size == sizeof(data::APInfo);
+    case MessageType::LOG:
+        return msg.header.size > 0 && msg.header.size <= SMALL_BUFFER_SIZE;
     default:
         return false;
     }
@@ -167,6 +169,9 @@ void RxParserBase::on_parsed() {
         break;
     case MessageType::DEVICE_INFO_V2:
         process_esp_device_info();
+        break;
+    case MessageType::LOG:
+        process_log();
         break;
     case MessageType::PACKET_V2:
         if (state == State::Data) {

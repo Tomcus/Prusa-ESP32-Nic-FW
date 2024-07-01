@@ -693,6 +693,75 @@ static void IRAM_ATTR handle_rx_msg_scan_get(const esp::Header& header) {
     }
 }
 
+static int IRAM_ATTR log_over_uart(const char* fmt, va_list args) {
+    char buffer[128];
+    const auto count = vsnprintf(buffer, 128, fmt, args);
+
+    esp::MessagePrelude message{};
+    uint32_t crc = 0;
+    crc = esp_crc32_le(crc, intron.data(), intron.size());
+    message.header.type = esp::MessageType::LOG;
+    message.header.size = htons(count);
+    crc = esp_crc32_le(crc, reinterpret_cast<uint8_t *>(&message.header), sizeof(message.header));
+    crc = esp_crc32_le(crc, reinterpret_cast<const uint8_t *>(&buffer[0]), count);
+    message.data_checksum = htonl(crc);
+
+    xSemaphoreTake(uart_mtx, portMAX_DELAY);
+    uart_write_bytes(UART_NUM_0, intron.data(), intron.size());
+    uart_write_bytes(UART_NUM_0, reinterpret_cast<uint8_t *>(&message.header), sizeof(message.header) + sizeof(message.data_checksum));
+    uart_write_bytes(UART_NUM_0, &buffer[0], count);
+    xSemaphoreGive(uart_mtx);
+
+    return count;
+}
+
+static void IRAM_ATTR set_defaul_logging() {
+    esp_log_level_set("*", ESP_LOG_ERROR);
+    esp_log_level_set(TAG, ESP_LOG_WARN);
+}
+
+static esp_log_level_t IRAM_ATTR from_message_log_type(esp::data::EspLogLevel level) {
+    switch (level) {
+        case esp::data::EspLogLevel::OFF:
+            return ESP_LOG_NONE;
+        case esp::data::EspLogLevel::DEBUG:
+            return ESP_LOG_DEBUG;
+        case esp::data::EspLogLevel::INFO:
+            return ESP_LOG_INFO;
+        case esp::data::EspLogLevel::WARNING:
+            return ESP_LOG_WARN;
+        case esp::data::EspLogLevel::ERROR:
+            return ESP_LOG_ERROR;
+    }
+    __builtin_unreachable();
+}
+
+static void IRAM_ATTR handle_rx_msg_log(std::span<const uint8_t> data) {
+    if (data.size() != sizeof(esp::data::EnableLogging)) {
+        ESP_LOGE(TAG, "Unable to log over uart - invalid message len");
+        return;
+    }
+
+    static vprintf_like_t original_logger = nullptr;
+
+    const auto* ena_log = reinterpret_cast<const esp::data::EnableLogging *>(data.data());
+    if (ena_log->system == esp::data::EspLogLevel::OFF && ena_log->nic == esp::data::EspLogLevel::OFF) {
+        if (original_logger != nullptr) {
+            // Turning both off -> reset to "normal" config
+            esp_log_set_vprintf(original_logger);
+            set_defaul_logging();
+        } else {
+            ESP_LOGW(TAG, "Unable to restore original logger - no logger stored");
+        }
+    } else {
+        if (original_logger == nullptr) {
+            original_logger = esp_log_set_vprintf(log_over_uart);
+        }
+        esp_log_level_set("*", from_message_log_type(ena_log->system));
+        esp_log_level_set(TAG, from_message_log_type(ena_log->nic));
+    }
+}
+
 static void IRAM_ATTR read_message() {
     wait_for_intron();
 
@@ -744,6 +813,9 @@ static void IRAM_ATTR read_message() {
             break;
             case esp::MessageType::DEVICE_INFO_V2:
                 ESP_LOGE(TAG, "esp::MessageType::DEVICE_INFO_V2 is only transmitted, never recieved");
+            break;
+            case esp::MessageType::LOG:
+                handle_rx_msg_log(std::span{data, message.header.size});
             break;
             default:
                 ESP_LOGE(TAG, "Unknown message type: %d !!!", static_cast<uint8_t>(message.header.type));
@@ -830,8 +902,7 @@ static void IRAM_ATTR uart_tx_thread(void *arg) {
 extern "C" void app_main() {
     ESP_LOGI(TAG, "UART NIC");
 
-    esp_log_level_set("*", ESP_LOG_ERROR);
-    esp_log_level_set(TAG, ESP_LOG_WARN);
+    set_defaul_logging();
 
     ESP_ERROR_CHECK(nvs_flash_init());
 

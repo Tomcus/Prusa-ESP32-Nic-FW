@@ -10,7 +10,7 @@ namespace esp {
 
 struct RxParserBase {
     using Input = std::span<const uint8_t>;
-    static constexpr size_t SMALL_BUFFER_SIZE = 64;
+    static constexpr size_t SMALL_BUFFER_SIZE = 128;
 
     void set_intron(std::span<const uint8_t, INTRON_SIZE> new_intron);
 
@@ -40,6 +40,7 @@ protected:
     virtual void reset_packet() = 0;
     virtual void update_packet(std::span<const uint8_t>) = 0;
     virtual void process_packet() = 0;
+    virtual void process_log() = 0;
 
     MessagePrelude msg;
     Input::iterator curr, end;
