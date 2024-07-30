@@ -427,7 +427,9 @@ static esp_err_t IRAM_ATTR wifi_receive_cb(void *buffer, uint16_t len, void *eb)
     buff->data = buffer;
     buff->rx_buff = eb;
     if (!xQueueSendToBack(uart_tx_queue, (void *)&buff, portMAX_DELAY)) {
+        cleanup();
         free_wifi_receive_buff(buff);
+        return ESP_FAIL;
     }
     return ESP_OK;
 }
