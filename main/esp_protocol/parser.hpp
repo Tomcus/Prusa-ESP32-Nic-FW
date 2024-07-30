@@ -1,15 +1,14 @@
 #pragma once
 
+#include "messages.hpp"
+
 #include <array>
 #include <cstdint>
 #include <span>
 
-#include "messages.hpp"
-
 namespace esp {
 
 struct RxParserBase {
-    RxParserBase() = default;
     using Input = std::span<const uint8_t>;
     static constexpr size_t SMALL_BUFFER_SIZE = 64;
 

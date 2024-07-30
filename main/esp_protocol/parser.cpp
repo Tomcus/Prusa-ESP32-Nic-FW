@@ -25,7 +25,7 @@ void RxParserBase::reset() {
 
     msg = {};
     crc = 0;
-    buffer = std::span<uint8_t> {};
+    buffer = {};
     intron = esp::DEFAULT_INTRON;
     read = 0;
     state = State::Intron;
